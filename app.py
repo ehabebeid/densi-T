@@ -183,76 +183,80 @@ def build_scatter(
 
 
 st.set_page_config(page_title="Densi-T", layout="wide")
-st.markdown("<style>.block-container{padding-top:2rem}</style>", unsafe_allow_html=True)
+st.markdown("<style>.block-container{padding-top:1rem}</style>", unsafe_allow_html=True)
 st.title("Densi-T")
 st.caption("Transit service and neighborhood density across the MBTA network.")
 
 df = load_data(Path(DATA_PATH).stat().st_mtime)
 
 with st.sidebar:
-    radius = st.select_slider("Station area radius (mi)", options=[0.25, 0.5, 1.0], value=0.5)
+    st.markdown("# Filters")
+    st.markdown("**Mode**")
+    mode_filter = st.segmented_control("Mode", ["Rapid Transit", "Commuter Rail"], default="Rapid Transit", label_visibility="collapsed")
+    st.markdown("**Station area radius (mi)**")
+    radius = st.select_slider("Station area radius (mi)", options=[0.25, 0.5, 1.0], value=0.5, label_visibility="collapsed")
+    st.markdown("**Stations**")
     include_downtown = st.checkbox("Include Downtown and Back Bay Stations", value=True)
-
-mode_filter = st.segmented_control("Mode", ["Rapid Transit", "Commuter Rail"], default="Rapid Transit", label_visibility="collapsed")
 
 base = df[(df["buffer_mi"] == radius) & (df["mode"] == mode_filter)].copy()
 if not include_downtown:
     base = base[~base["is_downtown_and_back_bay"]]
 
-hdr, _, xl, xs, yl, ys = st.columns([3, 0.5, 0.7, 2, 0.7, 2], vertical_alignment="center")
-with hdr:
-    st.subheader("Service vs. density")
-with xl:
-    st.markdown("X axis")
-with xs:
-    x_label = st.selectbox("X axis", list(X_OPTIONS.keys()), label_visibility="collapsed")
-with yl:
-    st.markdown("Y axis")
-with ys:
-    y_label = st.selectbox("Y axis", list(Y_OPTIONS.keys()), label_visibility="collapsed")
+tab_scatter, tab_density = st.tabs(["Service vs. density", "Density change"])
 
-x_col = X_OPTIONS[x_label]
-y_col = Y_OPTIONS[y_label]
+with tab_scatter:
+    _, xl, xs, yl, ys = st.columns([3, 0.7, 2, 0.7, 2], vertical_alignment="center")
+    with xl:
+        st.markdown("X axis")
+    with xs:
+        x_label = st.selectbox("X axis", list(X_OPTIONS.keys()), label_visibility="collapsed")
+    with yl:
+        st.markdown("Y axis")
+    with ys:
+        y_label = st.selectbox("Y axis", list(Y_OPTIONS.keys()), label_visibility="collapsed")
 
-st.plotly_chart(
-    build_scatter(base, x_col, x_label, y_col, y_label, mode_filter),
-    width="stretch",
-)
+    x_col = X_OPTIONS[x_label]
+    y_col = Y_OPTIONS[y_label]
 
-st.divider()
-st.subheader("Population and jobs density change, 2010–2024")
+    st.plotly_chart(
+        build_scatter(base, x_col, x_label, y_col, y_label, mode_filter),
+        width="stretch",
+    )
 
-base["density_change"] = base["pop_jobs_2024_per_acre"] - base["pop_jobs_2010_per_acre"]
+with tab_density:
+    st.subheader("Population and jobs density change, 2010–2024")
 
-n = st.slider("Stations to show", 5, 30, 15)
-col_gain, col_loss = st.columns(2)
+    base["density_change"] = base["pop_jobs_2024_per_acre"] - base["pop_jobs_2010_per_acre"]
 
-gainers = base.nlargest(n, "density_change").sort_values("density_change")
-losers  = base.nsmallest(n, "density_change").sort_values("density_change", ascending=False)
-bar_color = CR_COLOR if mode_filter == "Commuter Rail" else RT_ROUTE_COLORS["Blue"]
+    n = st.slider("Stations to show", 5, 30, 15)
+    col_gain, col_loss = st.columns(2)
 
-with col_gain:
-    st.caption("Most growth")
-    fig_gain = go.Figure(go.Bar(
-        x=gainers["density_change"].round(0).astype(int),
-        y=gainers["stop_name"],
-        orientation="h",
-        marker_color=bar_color,
-        customdata=_bar_hover(gainers),
-        hovertemplate=BAR_HOVER,
-    ))
-    fig_gain.update_layout(height=max(350, n * 24), margin=dict(t=10))
-    st.plotly_chart(fig_gain, width="stretch")
+    gainers = base.nlargest(n, "density_change").sort_values("density_change")
+    losers  = base.nsmallest(n, "density_change").sort_values("density_change", ascending=False)
+    bar_color = CR_COLOR if mode_filter == "Commuter Rail" else RT_ROUTE_COLORS["Blue"]
 
-with col_loss:
-    st.caption("Least growth / most decline")
-    fig_loss = go.Figure(go.Bar(
-        x=losers["density_change"].round(0).astype(int),
-        y=losers["stop_name"],
-        orientation="h",
-        marker_color=bar_color,
-        customdata=_bar_hover(losers),
-        hovertemplate=BAR_HOVER,
-    ))
-    fig_loss.update_layout(height=max(350, n * 24), margin=dict(t=10))
-    st.plotly_chart(fig_loss, width="stretch")
+    with col_gain:
+        st.caption("Most growth")
+        fig_gain = go.Figure(go.Bar(
+            x=gainers["density_change"].round(0).astype(int),
+            y=gainers["stop_name"],
+            orientation="h",
+            marker_color=bar_color,
+            customdata=_bar_hover(gainers),
+            hovertemplate=BAR_HOVER,
+        ))
+        fig_gain.update_layout(height=max(350, n * 24), margin=dict(t=10))
+        st.plotly_chart(fig_gain, width="stretch")
+
+    with col_loss:
+        st.caption("Least growth / most decline")
+        fig_loss = go.Figure(go.Bar(
+            x=losers["density_change"].round(0).astype(int),
+            y=losers["stop_name"],
+            orientation="h",
+            marker_color=bar_color,
+            customdata=_bar_hover(losers),
+            hovertemplate=BAR_HOVER,
+        ))
+        fig_loss.update_layout(height=max(350, n * 24), margin=dict(t=10))
+        st.plotly_chart(fig_loss, width="stretch")
