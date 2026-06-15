@@ -183,7 +183,10 @@ def build_scatter(
 
 
 st.set_page_config(page_title="Densi-T", layout="wide")
-st.markdown("<style>.block-container{padding-top:1rem}</style>", unsafe_allow_html=True)
+st.markdown(
+    "<style>.block-container{padding-top:1rem} .axis-label{text-align:right}</style>",
+    unsafe_allow_html=True,
+)
 st.title("Densi-T")
 st.caption("Transit service and neighborhood density across the MBTA network.")
 
@@ -207,11 +210,11 @@ tab_scatter, tab_density = st.tabs(["Service vs. density", "Density change"])
 with tab_scatter:
     _, xl, xs, yl, ys = st.columns([3, 0.7, 2, 0.7, 2], vertical_alignment="center")
     with xl:
-        st.markdown("X axis")
+        st.markdown('<p class="axis-label">X axis</p>', unsafe_allow_html=True)
     with xs:
         x_label = st.selectbox("X axis", list(X_OPTIONS.keys()), label_visibility="collapsed")
     with yl:
-        st.markdown("Y axis")
+        st.markdown('<p class="axis-label">Y axis</p>', unsafe_allow_html=True)
     with ys:
         y_label = st.selectbox("Y axis", list(Y_OPTIONS.keys()), label_visibility="collapsed")
 
