@@ -9,6 +9,16 @@ PROJECTED_CRS = "EPSG:32619"
 METERS_PER_MILE = 1609.344
 BUFFER_MILES = [0.25, 0.5, 1.0]
 
+RT_ROUTES = {"Red", "Orange", "Blue", "Mattapan", "Green-B", "Green-C", "Green-D", "Green-E"}
+
+
+def classify_mode(routes: str) -> str:
+    if pd.isna(routes):
+        return "Commuter Rail"
+    if set(str(routes).split(",")) & RT_ROUTES:
+        return "Rapid Transit"
+    return "Commuter Rail"
+
 # (path, list of columns to interpolate as extensive/count variables)
 SOURCE_LAYERS = [
     (DATA_DIR / "pop_2010.geojson",       ["pop_2010"]),
@@ -43,9 +53,10 @@ def main():
         buffers = stations_proj.copy()
         buffers["geometry"] = buffers.geometry.buffer(radius_mi * METERS_PER_MILE)
 
-        result = buffers[["parent_station", "stop_name", "routes",
+        result = buffers[["parent_station", "stop_name", "routes", "route_names",
                           "tph_am_peak", "tph_midday", "tph_pm_peak", "peak_trips_per_hr"]].copy()
         result["buffer_mi"] = radius_mi
+        result["mode"] = result["routes"].apply(classify_mode)
 
         for src, cols in sources:
             interp = area_interpolate(src, buffers, extensive_variables=cols, allocate_total=False)

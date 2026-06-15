@@ -9,6 +9,15 @@ OUTPUT_DIR = Path("data")
 RAIL_TYPES = {"0", "1", "2"}
 SERVICE_DATE = "20260506"
 
+# Display order for route names: RT lines first in map order, then CR alphabetically
+_RT_ORDER = ["Red", "Orange", "Blue", "Green-B", "Green-C", "Green-D", "Green-E", "Mattapan"]
+
+
+def _route_sort_key(route_id: str) -> tuple:
+    if route_id in _RT_ORDER:
+        return (0, _RT_ORDER.index(route_id), "")
+    return (1, 0, route_id)
+
 PERIODS = {
     "am_peak":  ("07:00:00", "09:00:00", 2),
     "midday":   ("10:00:00", "14:00:00", 4),
@@ -72,16 +81,34 @@ def main():
     st = st.merge(g["stops"][["stop_id", "parent_station"]], on="stop_id", how="left")
     st = st.dropna(subset=["parent_station"])
 
-    # routes per parent station
-    routes_per_station = (
+    # routes per parent station (raw IDs for internal logic)
+    trips_routes = (
         st[["trip_id", "parent_station"]]
         .drop_duplicates()
         .merge(g["trips"][["trip_id", "route_id"]], on="trip_id", how="left")
         [["parent_station", "route_id"]]
         .drop_duplicates()
-        .groupby("parent_station")["route_id"]
+    )
+    routes_per_station = (
+        trips_routes.groupby("parent_station")["route_id"]
         .apply(lambda x: ",".join(sorted(x.unique())))
         .reset_index(name="routes")
+    )
+
+    # human-readable route names for display, ordered RT-first then CR alphabetically
+    route_id_to_name = g["routes"].set_index("route_id")["route_long_name"].to_dict()
+    route_names_per_station = (
+        trips_routes
+        .drop_duplicates(["parent_station", "route_id"])
+        .assign(
+            route_name=lambda df: df["route_id"].map(route_id_to_name),
+            _s0=lambda df: df["route_id"].map(lambda r: 0 if r in _RT_ORDER else 1),
+            _s1=lambda df: df["route_id"].map(lambda r: _RT_ORDER.index(r) if r in _RT_ORDER else 0),
+        )
+        .sort_values(["parent_station", "_s0", "_s1", "route_name"])
+        .groupby("parent_station")["route_name"]
+        .apply(lambda x: ", ".join(x.dropna()))
+        .reset_index(name="route_names")
     )
 
     # compute frequency for each period
@@ -101,6 +128,7 @@ def main():
     freq[tph_cols] = freq[tph_cols].fillna(0)
     freq["peak_trips_per_hr"] = freq[tph_cols].max(axis=1)
     freq = freq.merge(routes_per_station, on="parent_station", how="left")
+    freq = freq.merge(route_names_per_station, on="parent_station", how="left")
 
     # join parent station name + coordinates
     parents = g["stops"][g["stops"]["stop_id"].isin(freq["parent_station"])][
