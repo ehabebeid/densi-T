@@ -219,7 +219,7 @@ with st.sidebar:
     st.markdown("**Mode**")
     mode_filter = st.segmented_control("Mode", ["Rapid Transit", "Commuter Rail"], default="Rapid Transit", label_visibility="collapsed")
     st.markdown("**Station area radius (mi)**")
-    radius = st.select_slider("Station area radius (mi)", options=[0.25, 0.5, 1.0], value=0.5, label_visibility="collapsed")
+    radius = st.select_slider("Station area radius (mi)", options=[0.25, 0.5, 1.0], value=1.0, label_visibility="collapsed")
     st.markdown("**Stations**")
     include_downtown = st.checkbox("Include Downtown and Back Bay Stations", value=True)
 
