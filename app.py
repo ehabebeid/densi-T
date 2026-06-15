@@ -1,0 +1,255 @@
+from collections import defaultdict
+from pathlib import Path
+
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
+import streamlit as st
+
+DATA_PATH = "data/catchments.geojson"
+
+RT_ROUTE_COLORS: dict[str, str] = {
+    "Red":     "#DA291C",
+    "Orange":  "#ED8B00",
+    "Blue":    "#003DA5",
+    "Green-B": "#00843D",
+    "Green-C": "#00843D",
+    "Green-D": "#00843D",
+    "Green-E": "#00843D",
+    "Mattapan":"#8B2000",
+}
+
+CR_COLOR = "#80276C"
+
+RT_LEGEND      = {color: name.split("-")[0] for name, color in RT_ROUTE_COLORS.items()}
+RT_COLOR_ORDER = list(dict.fromkeys(RT_ROUTE_COLORS.values()))
+
+X_OPTIONS = {
+    "Peak trips per hour":    "peak_trips_per_hr",
+    "AM peak trips per hour": "tph_am_peak",
+    "Midday trips per hour":  "tph_midday",
+    "PM peak trips per hour": "tph_pm_peak",
+}
+
+Y_OPTIONS = {
+    "Population and Jobs per acre (2024)": "pop_jobs_2024_per_acre",
+    "Population per acre (2024)":          "pop_2024_per_acre",
+    "Jobs per acre (2024)":                "jobs_2023_per_acre",
+    "Population and Jobs per acre (2010)": "pop_jobs_2010_per_acre",
+    "Population per acre (2010)":          "pop_2010_per_acre",
+    "Jobs per acre (2010)":                "jobs_2011_per_acre",
+}
+
+NUMERIC_COLS = [
+    "peak_trips_per_hr", "tph_am_peak", "tph_midday", "tph_pm_peak",
+    "pop_2010", "pop_2024", "jobs_2011", "jobs_2023",
+    "pop_2010_per_acre", "pop_2024_per_acre", "jobs_2011_per_acre", "jobs_2023_per_acre",
+    "pop_jobs_2010_per_acre", "pop_jobs_2024_per_acre",
+]
+
+
+def _distinct_rt_colors(routes_str: str) -> list[str]:
+    if pd.isna(routes_str):
+        return ["#888888"]
+    seen: set[str] = set()
+    out: list[str] = []
+    for r in routes_str.split(","):
+        c = RT_ROUTE_COLORS.get(r)
+        if c and c not in seen:
+            seen.add(c)
+            out.append(c)
+    return out or ["#888888"]
+
+
+BAR_HOVER = (
+    '<span style="font-size:14px"><b>%{y}</b></span><br>'
+    "<b>2010:</b> %{customdata[0]}<br>"
+    "<b>2024:</b> %{customdata[1]}<br>"
+    "<b>Change:</b> %{x:+d} population and jobs per acre"
+    "<extra></extra>"
+)
+
+
+def _bar_hover(df: pd.DataFrame) -> np.ndarray:
+    return np.stack([
+        df["pop_jobs_2010_per_acre"].round(0).astype(int),
+        df["pop_jobs_2024_per_acre"].round(0).astype(int),
+    ], axis=1)
+
+
+@st.cache_data
+def load_data(mtime: float) -> pd.DataFrame:
+    gdf = gpd.read_file(DATA_PATH)
+    df = pd.DataFrame(gdf.drop(columns="geometry"))
+    for col in NUMERIC_COLS:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    return df
+
+
+def build_scatter(
+    df_sub: pd.DataFrame,
+    x_col: str, x_label: str,
+    y_col: str, y_label: str,
+    mode: str,
+) -> go.Figure:
+    color_fn  = _distinct_rt_colors if mode == "Rapid Transit" else lambda _: [CR_COLOR]
+    legend_map = RT_LEGEND if mode == "Rapid Transit" else {CR_COLOR: "Commuter Rail"}
+
+    df_sub = df_sub.copy()
+    df_sub["_colors"] = df_sub["routes"].apply(color_fn)
+    valid = df_sub.dropna(subset=[x_col, y_col])
+
+    # Axis ranges with padding
+    x_min, x_max = valid[x_col].min(), valid[x_col].max()
+    y_min, y_max = valid[y_col].min(), valid[y_col].max()
+    x_pad = max(0.07 * (x_max - x_min), 0.5)
+    y_pad = max(0.07 * (y_max - y_min), 0.5)
+    x_range = [x_min - x_pad, x_max + x_pad]
+    y_range = [y_min - y_pad, y_max + y_pad]
+
+    fig = go.Figure()
+
+    # OLS trendline
+    if len(valid) >= 2:
+        coef = np.polyfit(valid[x_col], valid[y_col], 1)
+        xl = np.linspace(x_range[0], x_range[1], 200)
+        fig.add_trace(go.Scatter(
+            x=xl, y=np.polyval(coef, xl),
+            mode="lines",
+            line=dict(color="rgba(0,0,0,0.2)", width=2, dash="dash"),
+            hoverinfo="skip", showlegend=False,
+        ))
+
+    # One trace per color; multi-line stations appear in each of their color's trace
+    color_groups: dict[str, list] = defaultdict(list)
+    for idx, colors in valid["_colors"].items():
+        for c in colors:
+            color_groups[c].append(idx)
+
+    ordered_colors = [c for c in RT_COLOR_ORDER if c in color_groups]
+    ordered_colors += sorted(c for c in color_groups if c not in RT_COLOR_ORDER)
+    for color in ordered_colors:
+        indices = color_groups[color]
+        grp = valid.loc[indices]
+        clists = grp["_colors"].tolist()
+        name = legend_map.get(color, color)
+        # Solid-color legend icon linked to the data trace via legendgroup
+        fig.add_trace(go.Scatter(
+            x=[None], y=[None], mode="markers",
+            marker=dict(size=10, color=color),
+            name=name, legendgroup=color, showlegend=True,
+        ))
+        fig.add_trace(go.Scatter(
+            x=grp[x_col],
+            y=grp[y_col],
+            mode="markers",
+            name=name,
+            legendgroup=color,
+            marker=dict(
+                size=16,
+                color=[c[0] for c in clists],
+                gradient=dict(
+                    type=["horizontal" if len(c) > 1 else "none" for c in clists],
+                    color=[c[1] if len(c) > 1 else c[0] for c in clists],
+                ),
+                line=dict(color="white", width=1),
+            ),
+            text=grp["stop_name"],
+            customdata=np.stack([
+                grp["route_names"].fillna(""),
+                grp[x_col].round(1),
+                grp[y_col].round(0).astype(int),
+            ], axis=1),
+            hovertemplate=(
+                '<span style="font-size:14px"><b>%{text}</b></span><br>'
+                "<b>Routes:</b> %{customdata[0]}<br>"
+                f"<b>{x_label}:</b> %{{customdata[1]}}<br>"
+                f"<b>{y_label}:</b> %{{customdata[2]}}"
+                "<extra></extra>"
+            ),
+            showlegend=False,
+        ))
+
+    fig.update_layout(
+        height=540,
+        xaxis=dict(title=x_label, range=x_range),
+        yaxis=dict(title=y_label, range=y_range),
+        showlegend=mode == "Rapid Transit",
+        legend=dict(orientation="v", title=""),
+        margin=dict(l=60, r=140, t=15, b=50),
+    )
+    return fig
+
+
+st.set_page_config(page_title="Densi-T", layout="wide")
+st.markdown("<style>.block-container{padding-top:2rem}</style>", unsafe_allow_html=True)
+st.title("Densi-T")
+st.caption("Transit service and neighborhood density across the MBTA network.")
+
+df = load_data(Path(DATA_PATH).stat().st_mtime)
+
+with st.sidebar:
+    radius = st.select_slider("Station area radius (mi)", options=[0.25, 0.5, 1.0], value=0.5)
+
+mode_filter = st.segmented_control("Mode", ["Rapid Transit", "Commuter Rail"], default="Rapid Transit", label_visibility="collapsed")
+
+base = df[(df["buffer_mi"] == radius) & (df["mode"] == mode_filter)].copy()
+
+hdr, _, xl, xs, yl, ys = st.columns([3, 0.5, 0.7, 2, 0.7, 2], vertical_alignment="center")
+with hdr:
+    st.subheader("Service vs. density")
+with xl:
+    st.markdown("X axis")
+with xs:
+    x_label = st.selectbox("X axis", list(X_OPTIONS.keys()), label_visibility="collapsed")
+with yl:
+    st.markdown("Y axis")
+with ys:
+    y_label = st.selectbox("Y axis", list(Y_OPTIONS.keys()), label_visibility="collapsed")
+
+x_col = X_OPTIONS[x_label]
+y_col = Y_OPTIONS[y_label]
+
+st.plotly_chart(
+    build_scatter(base, x_col, x_label, y_col, y_label, mode_filter),
+    width="stretch",
+)
+
+st.divider()
+st.subheader("Population and jobs density change, 2010–2024")
+
+base["density_change"] = base["pop_jobs_2024_per_acre"] - base["pop_jobs_2010_per_acre"]
+
+n = st.slider("Stations to show", 5, 30, 15)
+col_gain, col_loss = st.columns(2)
+
+gainers = base.nlargest(n, "density_change").sort_values("density_change")
+losers  = base.nsmallest(n, "density_change").sort_values("density_change", ascending=False)
+bar_color = CR_COLOR if mode_filter == "Commuter Rail" else RT_ROUTE_COLORS["Blue"]
+
+with col_gain:
+    st.caption("Most growth")
+    fig_gain = go.Figure(go.Bar(
+        x=gainers["density_change"].round(0).astype(int),
+        y=gainers["stop_name"],
+        orientation="h",
+        marker_color=bar_color,
+        customdata=_bar_hover(gainers),
+        hovertemplate=BAR_HOVER,
+    ))
+    fig_gain.update_layout(height=max(350, n * 24), margin=dict(t=10))
+    st.plotly_chart(fig_gain, width="stretch")
+
+with col_loss:
+    st.caption("Least growth / most decline")
+    fig_loss = go.Figure(go.Bar(
+        x=losers["density_change"].round(0).astype(int),
+        y=losers["stop_name"],
+        orientation="h",
+        marker_color=bar_color,
+        customdata=_bar_hover(losers),
+        hovertemplate=BAR_HOVER,
+    ))
+    fig_loss.update_layout(height=max(350, n * 24), margin=dict(t=10))
+    st.plotly_chart(fig_loss, width="stretch")
