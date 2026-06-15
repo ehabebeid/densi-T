@@ -93,6 +93,7 @@ def build_scatter(
     y_col: str, y_label: str,
     mode: str,
     df_fit: pd.DataFrame | None = None,
+    jitter: bool = False,
 ) -> go.Figure:
     color_fn  = _distinct_rt_colors if mode == "Rapid Transit" else lambda _: [CR_COLOR]
     legend_map = RT_LEGEND if mode == "Rapid Transit" else {CR_COLOR: "Commuter Rail"}
@@ -124,6 +125,18 @@ def build_scatter(
             hoverinfo="skip", showlegend=False,
         ))
 
+    # Deterministic x jitter to spread stacked same-frequency stations
+    if jitter:
+        jitter_amt = max(0.008 * (x_max - x_min), 0.04)
+        rng = np.random.default_rng(seed=abs(hash(tuple(valid.index.tolist()))) % (2**32))
+        raw_jitter = rng.uniform(-jitter_amt, jitter_amt, size=len(valid))
+        x_jitter = pd.Series(
+            np.clip(valid[x_col].values + raw_jitter, 0, None) - valid[x_col].values,
+            index=valid.index,
+        )
+    else:
+        x_jitter = pd.Series(0.0, index=valid.index)
+
     # One trace per color; multi-line stations appear in each of their color's trace
     color_groups: dict[str, list] = defaultdict(list)
     for idx, colors in valid["_colors"].items():
@@ -144,7 +157,7 @@ def build_scatter(
             name=name, legendgroup=color, showlegend=True,
         ))
         fig.add_trace(go.Scatter(
-            x=grp[x_col],
+            x=grp[x_col] + x_jitter.loc[grp.index],
             y=grp[y_col],
             mode="markers",
             name=name,
@@ -212,7 +225,7 @@ if not include_downtown:
 tab_scatter, tab_density = st.tabs(["Service vs. density", "Density change"])
 
 with tab_scatter:
-    _, xl, xs, yl, ys = st.columns([3, 0.7, 2, 0.7, 2], vertical_alignment="center")
+    _, xl, xs, yl, ys, _, jc = st.columns([3, 0.7, 2, 0.7, 2, 0.3, 1.2], vertical_alignment="center")
     with xl:
         st.markdown('<p class="axis-label">X axis</p>', unsafe_allow_html=True)
     with xs:
@@ -221,12 +234,14 @@ with tab_scatter:
         st.markdown('<p class="axis-label">Y axis</p>', unsafe_allow_html=True)
     with ys:
         y_label = st.selectbox("Y axis", list(Y_OPTIONS.keys()), label_visibility="collapsed")
+    with jc:
+        jitter = st.checkbox("Jitter", value=True)
 
     x_col = X_OPTIONS[x_label]
     y_col = Y_OPTIONS[y_label]
 
     st.plotly_chart(
-        build_scatter(base, x_col, x_label, y_col, y_label, mode_filter, df_fit=base_full),
+        build_scatter(base, x_col, x_label, y_col, y_label, mode_filter, df_fit=base_full, jitter=jitter),
         width="stretch",
     )
 
