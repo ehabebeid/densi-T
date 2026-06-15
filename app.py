@@ -31,6 +31,12 @@ CR_COLOR = "#80276C"
 RT_LEGEND      = {color: name.split("-")[0] for name, color in RT_ROUTE_COLORS.items()}
 RT_COLOR_ORDER = list(dict.fromkeys(RT_ROUTE_COLORS.values()))
 
+DENSITY_OPTIONS: dict[str, tuple[str, str]] = {
+    "Population and jobs": ("pop_jobs_2024_per_acre", "pop_jobs_2010_per_acre"),
+    "Population":          ("pop_2024_per_acre",      "pop_2010_per_acre"),
+    "Jobs":                ("jobs_2023_per_acre",     "jobs_2011_per_acre"),
+}
+
 X_OPTIONS = {
     "Peak trips per hour":    "peak_trips_per_hr",
     "AM peak trips per hour": "tph_am_peak",
@@ -77,10 +83,10 @@ BAR_HOVER = (
 )
 
 
-def _bar_hover(df: pd.DataFrame) -> np.ndarray:
+def _bar_hover(df: pd.DataFrame, col_2010: str = "pop_jobs_2010_per_acre", col_2024: str = "pop_jobs_2024_per_acre") -> np.ndarray:
     return np.stack([
-        df["pop_jobs_2010_per_acre"].round(0).astype(int),
-        df["pop_jobs_2024_per_acre"].round(0).astype(int),
+        df[col_2010].round(0).astype(int),
+        df[col_2024].round(0).astype(int),
     ], axis=1)
 
 
@@ -305,15 +311,31 @@ with tab_scatter:
             st.dataframe(_fmt_residuals(below), hide_index=True, use_container_width=True, column_config={"Lines": st.column_config.TextColumn(width="small")})
 
 with tab_density:
-    st.subheader("Population and jobs density change, 2010–2024")
+    h, ml, ms, _, ns = st.columns([3, 0.7, 2, 0.3, 2], vertical_alignment="center")
+    with ms:
+        d_label = st.selectbox("Metric", list(DENSITY_OPTIONS.keys()), label_visibility="collapsed")
+    col_2024, col_2010 = DENSITY_OPTIONS[d_label]
+    with h:
+        st.subheader(f"{d_label} density change, 2010–2024")
+    with ml:
+        st.markdown('<p class="axis-label">Metric</p>', unsafe_allow_html=True)
+    with ns:
+        n = st.slider("Stations to show", 5, 30, 15)
 
-    base["density_change"] = base["pop_jobs_2024_per_acre"] - base["pop_jobs_2010_per_acre"]
-
-    n = st.slider("Stations to show", 5, 30, 15)
+    base["density_change"] = base[col_2024] - base[col_2010]
     col_gain, col_loss = st.columns(2)
 
     gainers = base.nlargest(n, "density_change").sort_values("density_change")
     losers  = base.nsmallest(n, "density_change").sort_values("density_change", ascending=False)
+
+    density_hover = (
+        '<span style="font-size:14px"><b>%{y}</b></span><br>'
+        "<b>2010:</b> %{customdata[0]}<br>"
+        "<b>2024:</b> %{customdata[1]}<br>"
+        f"<b>Change:</b> %{{x:+d}} {d_label.lower()} per acre"
+        "<extra></extra>"
+    )
+    x_title = f"{d_label} per acre"
 
     def _bar_label(row) -> str:
         if mode_filter != "Rapid Transit":
@@ -329,19 +351,19 @@ with tab_density:
             y=df.apply(_bar_label, axis=1),
             orientation="h",
             marker_color=bar_color,
-            customdata=_bar_hover(df),
-            hovertemplate=BAR_HOVER,
+            customdata=_bar_hover(df, col_2010, col_2024),
+            hovertemplate=density_hover,
             showlegend=False,
         ))
 
     with col_gain:
         st.caption("Most growth")
         fig_gain = _make_bar(gainers)
-        fig_gain.update_layout(height=max(350, n * 24), margin=dict(t=10, b=40), xaxis_title="Population and jobs per acre")
+        fig_gain.update_layout(height=max(350, n * 24), margin=dict(t=10, b=40), xaxis_title=x_title)
         st.plotly_chart(fig_gain, width="stretch")
 
     with col_loss:
         st.caption("Least growth / most decline")
         fig_loss = _make_bar(losers)
-        fig_loss.update_layout(height=max(350, n * 24), margin=dict(t=10, b=40), xaxis_title="Population and jobs per acre")
+        fig_loss.update_layout(height=max(350, n * 24), margin=dict(t=10, b=40), xaxis_title=x_title)
         st.plotly_chart(fig_loss, width="stretch")
