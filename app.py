@@ -92,6 +92,7 @@ def build_scatter(
     x_col: str, x_label: str,
     y_col: str, y_label: str,
     mode: str,
+    df_fit: pd.DataFrame | None = None,
 ) -> go.Figure:
     color_fn  = _distinct_rt_colors if mode == "Rapid Transit" else lambda _: [CR_COLOR]
     legend_map = RT_LEGEND if mode == "Rapid Transit" else {CR_COLOR: "Commuter Rail"}
@@ -110,9 +111,11 @@ def build_scatter(
 
     fig = go.Figure()
 
-    # OLS trendline
-    if len(valid) >= 2:
-        coef = np.polyfit(valid[x_col], valid[y_col], 1)
+    # OLS trendline — always fit on the full (unfiltered) dataset so the
+    # baseline doesn't shift when downtown stations are toggled off.
+    fit_source = (df_fit if df_fit is not None else df_sub).dropna(subset=[x_col, y_col])
+    if len(fit_source) >= 2:
+        coef = np.polyfit(fit_source[x_col], fit_source[y_col], 1)
         xl = np.linspace(x_range[0], x_range[1], 200)
         fig.add_trace(go.Scatter(
             x=xl, y=np.polyval(coef, xl),
@@ -201,7 +204,8 @@ with st.sidebar:
     st.markdown("**Stations**")
     include_downtown = st.checkbox("Include Downtown and Back Bay Stations", value=True)
 
-base = df[(df["buffer_mi"] == radius) & (df["mode"] == mode_filter)].copy()
+base_full = df[(df["buffer_mi"] == radius) & (df["mode"] == mode_filter)].copy()
+base = base_full.copy()
 if not include_downtown:
     base = base[~base["is_downtown_and_back_bay"]]
 
@@ -222,7 +226,7 @@ with tab_scatter:
     y_col = Y_OPTIONS[y_label]
 
     st.plotly_chart(
-        build_scatter(base, x_col, x_label, y_col, y_label, mode_filter),
+        build_scatter(base, x_col, x_label, y_col, y_label, mode_filter, df_fit=base_full),
         width="stretch",
     )
 
