@@ -245,6 +245,42 @@ with tab_scatter:
         width="stretch",
     )
 
+    # Residuals — fit on full dataset, evaluate on visible stations
+    fit_valid = base_full.dropna(subset=[x_col, y_col])
+    if len(fit_valid) >= 2:
+        coef = np.polyfit(fit_valid[x_col], fit_valid[y_col], 1)
+        res_df = base.dropna(subset=[x_col, y_col]).copy()
+        predicted = np.polyval(coef, res_df[x_col])
+        res_df["_residual"] = res_df[y_col] - predicted
+        res_df["_pct"] = res_df["_residual"] / np.clip(predicted, 1e-6, None) * 100
+
+        n_res = 10
+        above = res_df.nlargest(n_res, "_residual")[["stop_name", "route_names", "_residual", "_pct"]]
+        below = res_df.nsmallest(n_res, "_residual")[["stop_name", "route_names", "_residual", "_pct"]]
+
+        def _fmt_residuals(sub: pd.DataFrame) -> pd.DataFrame:
+            return (
+                sub.reset_index(drop=True)
+                .rename(columns={
+                    "stop_name": "Station",
+                    "route_names": "Routes",
+                    "_residual": "Density vs. expected (per acre)",
+                    "_pct": "% vs. expected",
+                })
+                .assign(**{
+                    "Density vs. expected (per acre)": lambda d: d["Density vs. expected (per acre)"].map(lambda v: f"{v:+.0f}"),
+                    "% vs. expected": lambda d: d["% vs. expected"].map(lambda v: f"{v:+.0f}%"),
+                })
+            )
+
+        col_above, col_below = st.columns(2)
+        with col_above:
+            st.markdown("**Well-developed / Under-served** (above the line)")
+            st.dataframe(_fmt_residuals(above), hide_index=True, use_container_width=True, column_config={"Routes": st.column_config.TextColumn(width="small")})
+        with col_below:
+            st.markdown("**Less-developed / Over-served** (below the line)")
+            st.dataframe(_fmt_residuals(below), hide_index=True, use_container_width=True, column_config={"Routes": st.column_config.TextColumn(width="small")})
+
 with tab_density:
     st.subheader("Population and jobs density change, 2010–2024")
 
