@@ -231,7 +231,9 @@ if not include_downtown:
 tab_scatter, tab_density = st.tabs(["Service vs. density", "Density change"])
 
 with tab_scatter:
-    xl, xs, yl, ys, _, jc = st.columns([0.7, 2, 0.7, 2, 0.3, 1.2], vertical_alignment="center")
+    h, xl, xs, yl, ys, _, jc = st.columns([3, 0.7, 2, 0.7, 2, 0.3, 1.2], vertical_alignment="center")
+    with h:
+        st.subheader("Relating transit service and station area density")
     with xl:
         st.markdown('<p class="axis-label">X axis</p>', unsafe_allow_html=True)
     with xs:
