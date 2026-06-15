@@ -328,13 +328,6 @@ with tab_density:
     gainers = base.nlargest(n, "density_change").sort_values("density_change")
     losers  = base.nsmallest(n, "density_change").sort_values("density_change", ascending=False)
 
-    density_hover = (
-        '<span style="font-size:14px"><b>%{y}</b></span><br>'
-        "<b>2010:</b> %{customdata[0]}<br>"
-        "<b>2024:</b> %{customdata[1]}<br>"
-        f"<b>Change:</b> %{{x:+d}} {d_label.lower()} per acre"
-        "<extra></extra>"
-    )
     x_title = f"{d_label} per acre"
 
     def _bar_label(row) -> str:
@@ -346,13 +339,23 @@ with tab_density:
     bar_color = CR_COLOR if mode_filter == "Commuter Rail" else "#555555"
 
     def _make_bar(df: pd.DataFrame) -> go.Figure:
+        x_int = df["density_change"].round(0).astype(int)
+        x_display = x_int.where(x_int != 0, df["density_change"].apply(lambda v: 0.05 if v >= 0 else -0.05))
+        cd = np.hstack([_bar_hover(df, col_2010, col_2024), x_int.values.reshape(-1, 1)])
+        hover = (
+            '<span style="font-size:14px"><b>%{y}</b></span><br>'
+            "<b>2010:</b> %{customdata[0]}<br>"
+            "<b>2024:</b> %{customdata[1]}<br>"
+            f"<b>Change:</b> %{{customdata[2]:+d}} {d_label.lower()} per acre"
+            "<extra></extra>"
+        )
         return go.Figure(go.Bar(
-            x=df["density_change"].round(0).astype(int),
+            x=x_display,
             y=df.apply(_bar_label, axis=1),
             orientation="h",
             marker_color=bar_color,
-            customdata=_bar_hover(df, col_2010, col_2024),
-            hovertemplate=density_hover,
+            customdata=cd,
+            hovertemplate=hover,
             showlegend=False,
         ))
 
