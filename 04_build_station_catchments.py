@@ -11,6 +11,13 @@ BUFFER_MILES = [0.25, 0.5, 1.0]
 
 RT_ROUTES = {"Red", "Orange", "Blue", "Mattapan", "Green-B", "Green-C", "Green-D", "Green-E"}
 
+DOWNTOWN_AND_BACK_BAY_STATIONS = {
+    "Government Center", "Park Street", "State", "Downtown Crossing", "Haymarket",
+    "North Station", "South Station", "Aquarium", "Bowdoin", "Chinatown",
+    "Tufts Medical Center", "Science Park/West End", "Boylston", "Charles/MGH",
+    "Arlington", "Copley", "Hynes Convention Center", "Back Bay", "Prudential"
+}
+
 
 def classify_mode(routes: str) -> str:
     if pd.isna(routes):
@@ -57,6 +64,7 @@ def main():
                           "tph_am_peak", "tph_midday", "tph_pm_peak", "peak_trips_per_hr"]].copy()
         result["buffer_mi"] = radius_mi
         result["mode"] = result["routes"].apply(classify_mode)
+        result["is_downtown_and_back_bay"] = result["stop_name"].isin(DOWNTOWN_AND_BACK_BAY_STATIONS)
 
         for src, cols in sources:
             interp = area_interpolate(src, buffers, extensive_variables=cols, allocate_total=False)

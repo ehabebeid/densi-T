@@ -191,10 +191,13 @@ df = load_data(Path(DATA_PATH).stat().st_mtime)
 
 with st.sidebar:
     radius = st.select_slider("Station area radius (mi)", options=[0.25, 0.5, 1.0], value=0.5)
+    include_downtown = st.checkbox("Include Downtown and Back Bay Stations", value=True)
 
 mode_filter = st.segmented_control("Mode", ["Rapid Transit", "Commuter Rail"], default="Rapid Transit", label_visibility="collapsed")
 
 base = df[(df["buffer_mi"] == radius) & (df["mode"] == mode_filter)].copy()
+if not include_downtown:
+    base = base[~base["is_downtown_and_back_bay"]]
 
 hdr, _, xl, xs, yl, ys = st.columns([3, 0.5, 0.7, 2, 0.7, 2], vertical_alignment="center")
 with hdr:
