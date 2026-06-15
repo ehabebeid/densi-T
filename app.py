@@ -9,6 +9,12 @@ import streamlit as st
 
 DATA_PATH = "data/catchments.geojson"
 
+ROUTE_CIRCLE: dict[str, str] = {
+    "Red": "🔴", "Orange": "🟠", "Blue": "🔵",
+    "Green-B": "🟢", "Green-C": "🟢", "Green-D": "🟢", "Green-E": "🟢",
+    "Mattapan": "🔴",
+}
+
 RT_ROUTE_COLORS: dict[str, str] = {
     "Red":     "#DA291C",
     "Orange":  "#ED8B00",
@@ -255,15 +261,30 @@ with tab_scatter:
         res_df["_pct"] = res_df["_residual"] / np.clip(predicted, 1e-6, None) * 100
 
         n_res = 10
-        above = res_df.nlargest(n_res, "_residual")[["stop_name", "route_names", "_residual", "_pct"]]
-        below = res_df.nsmallest(n_res, "_residual")[["stop_name", "route_names", "_residual", "_pct"]]
+        above = res_df.nlargest(n_res, "_residual")[["stop_name", "routes", "_residual", "_pct"]]
+        below = res_df.nsmallest(n_res, "_residual")[["stop_name", "routes", "_residual", "_pct"]]
+
+        def _to_circles(routes_str: str) -> str:
+            if pd.isna(routes_str):
+                return "🟣" if mode_filter == "Commuter Rail" else ""
+            route_set = {r.strip() for r in routes_str.split(",")}
+            seen: set[str] = set()
+            out = []
+            for r, circle in ROUTE_CIRCLE.items():
+                if r in route_set and circle not in seen:
+                    seen.add(circle)
+                    out.append(circle)
+            if any(r not in ROUTE_CIRCLE for r in route_set):
+                out.append("🟣")
+            return " ".join(out)
 
         def _fmt_residuals(sub: pd.DataFrame) -> pd.DataFrame:
             return (
                 sub.reset_index(drop=True)
+                .assign(routes=lambda d: d["routes"].map(_to_circles))
                 .rename(columns={
                     "stop_name": "Station",
-                    "route_names": "Routes",
+                    "routes": "Lines",
                     "_residual": "Density vs. expected (per acre)",
                     "_pct": "% vs. expected",
                 })
@@ -276,10 +297,10 @@ with tab_scatter:
         col_above, col_below = st.columns(2)
         with col_above:
             st.markdown("**Well-developed / Under-served** (above the line)")
-            st.dataframe(_fmt_residuals(above), hide_index=True, use_container_width=True, column_config={"Routes": st.column_config.TextColumn(width="small")})
+            st.dataframe(_fmt_residuals(above), hide_index=True, use_container_width=True, column_config={"Lines": st.column_config.TextColumn(width="small")})
         with col_below:
             st.markdown("**Less-developed / Over-served** (below the line)")
-            st.dataframe(_fmt_residuals(below), hide_index=True, use_container_width=True, column_config={"Routes": st.column_config.TextColumn(width="small")})
+            st.dataframe(_fmt_residuals(below), hide_index=True, use_container_width=True, column_config={"Lines": st.column_config.TextColumn(width="small")})
 
 with tab_density:
     st.subheader("Population and jobs density change, 2010–2024")
