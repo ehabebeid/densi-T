@@ -1,0 +1,16 @@
+# uv
+.venv/
+
+# env / secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+dist/
+*.egg-info/
+.eggs/
+
+# data
+data/
