@@ -335,11 +335,11 @@ with tab_density:
     with col_gain:
         st.caption("Most growth")
         fig_gain = _make_bar(gainers)
-        fig_gain.update_layout(height=max(350, n * 24), margin=dict(t=10))
+        fig_gain.update_layout(height=max(350, n * 24), margin=dict(t=10, b=40), xaxis_title="Population and jobs per acre")
         st.plotly_chart(fig_gain, width="stretch")
 
     with col_loss:
         st.caption("Least growth / most decline")
         fig_loss = _make_bar(losers)
-        fig_loss.update_layout(height=max(350, n * 24), margin=dict(t=10))
+        fig_loss.update_layout(height=max(350, n * 24), margin=dict(t=10, b=40), xaxis_title="Population and jobs per acre")
         st.plotly_chart(fig_loss, width="stretch")
