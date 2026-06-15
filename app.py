@@ -312,30 +312,34 @@ with tab_density:
 
     gainers = base.nlargest(n, "density_change").sort_values("density_change")
     losers  = base.nsmallest(n, "density_change").sort_values("density_change", ascending=False)
-    bar_color = CR_COLOR if mode_filter == "Commuter Rail" else RT_ROUTE_COLORS["Blue"]
+
+    def _bar_label(row) -> str:
+        if mode_filter != "Rapid Transit":
+            return row["stop_name"]
+        circles = _to_circles(row["routes"])
+        return f"{circles} {row['stop_name']}" if circles else row["stop_name"]
+
+    bar_color = CR_COLOR if mode_filter == "Commuter Rail" else "#555555"
+
+    def _make_bar(df: pd.DataFrame) -> go.Figure:
+        return go.Figure(go.Bar(
+            x=df["density_change"].round(0).astype(int),
+            y=df.apply(_bar_label, axis=1),
+            orientation="h",
+            marker_color=bar_color,
+            customdata=_bar_hover(df),
+            hovertemplate=BAR_HOVER,
+            showlegend=False,
+        ))
 
     with col_gain:
         st.caption("Most growth")
-        fig_gain = go.Figure(go.Bar(
-            x=gainers["density_change"].round(0).astype(int),
-            y=gainers["stop_name"],
-            orientation="h",
-            marker_color=bar_color,
-            customdata=_bar_hover(gainers),
-            hovertemplate=BAR_HOVER,
-        ))
+        fig_gain = _make_bar(gainers)
         fig_gain.update_layout(height=max(350, n * 24), margin=dict(t=10))
         st.plotly_chart(fig_gain, width="stretch")
 
     with col_loss:
         st.caption("Least growth / most decline")
-        fig_loss = go.Figure(go.Bar(
-            x=losers["density_change"].round(0).astype(int),
-            y=losers["stop_name"],
-            orientation="h",
-            marker_color=bar_color,
-            customdata=_bar_hover(losers),
-            hovertemplate=BAR_HOVER,
-        ))
+        fig_loss = _make_bar(losers)
         fig_loss.update_layout(height=max(350, n * 24), margin=dict(t=10))
         st.plotly_chart(fig_loss, width="stretch")
