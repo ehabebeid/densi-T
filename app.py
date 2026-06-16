@@ -220,6 +220,19 @@ with st.sidebar:
     radius = st.select_slider("Station area radius (mi)", options=[0.25, 0.5, 1.0], value=1.0, label_visibility="collapsed")
     st.markdown("**Stations**")
     include_downtown = st.checkbox("Include Downtown and Back Bay Stations", value=True)
+    st.divider()
+    st.markdown(
+            "**Service vs. density** compares station frequency "
+            "with the density of the station area. "
+            "Stations above the trendline are relatively dense for their "
+            "service level; station areas below are relatively underdeveloped.\n\n"
+            "**Density change** shows which station areas have added or lost "
+            "population and/or jobs since 2010.\n\n"
+            "Both views let you choose the density metric.\n\n"
+            "**Data:** Census (population), LEHD LODES (jobs), MBTA GTFS "
+            "(March 2026). Station areas are crow-flies buffers.\n\n"
+            "See the [README](https://github.com/ehabebeid/densi-T#readme) for more info."
+        )
 
 base_full = df[(df["buffer_mi"] == radius) & (df["mode"] == mode_filter)].copy()
 base = base_full.copy()
