@@ -223,7 +223,7 @@ with st.sidebar:
     st.divider()
     st.markdown(
             "**Service vs. density** compares station frequency "
-            "with the density of the station area. "
+            "with the density of the adjacent area. "
             "Stations above the trendline are relatively dense for their "
             "service level; station areas below are relatively underdeveloped.\n\n"
             "**Density change** shows which station areas have added or lost "
@@ -231,7 +231,8 @@ with st.sidebar:
             "Both views let you choose the density metric.\n\n"
             "**Data:** Census (population), LEHD LODES (jobs), MBTA GTFS "
             "(March 2026). Station areas are crow-flies buffers.\n\n"
-            "See the [README](https://github.com/ehabebeid/densi-T#readme) for more info."
+            "See the [README](https://github.com/ehabebeid/densi-T#readme) for more info.\n\n"
+            "*By Ehab Ebeid, inspired by a Slack post by Phillip Cherry.*"
         )
 
 base_full = df[(df["buffer_mi"] == radius) & (df["mode"] == mode_filter)].copy()
