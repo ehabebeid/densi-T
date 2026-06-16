@@ -26,7 +26,7 @@ Downtown (broadly defined) and Back Bay stations can be filtered out since they 
 
 **No nearby-station adjustment.** A station that seems underserved might sit right next to one with better frequency. This analysis doesn't account for that.
 
-**Density doesn't capture urban form.** Higher density doesn't fully capture what station-adjacent development is like, or if it's transit-oriented.Variables like walkability, station access, adjacent land uses, street network quality, and historical development patterns aren't reflected here.
+**Density doesn't capture urban form.** Higher density doesn't fully capture what station-adjacent development is like, or if it's transit-oriented. Variables like walkability, station access, adjacent land uses, street network quality, and historical development patterns aren't reflected here.
 
 **Crow-flies buffers.** Station areas are circles, not walkshed polygons. This will overcount the density of station areas that have poor street network accessibility.
 
