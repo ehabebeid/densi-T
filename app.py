@@ -74,14 +74,6 @@ def _distinct_rt_colors(routes_str: str) -> list[str]:
     return out or ["#888888"]
 
 
-BAR_HOVER = (
-    '<span style="font-size:14px"><b>%{y}</b></span><br>'
-    "<b>2010:</b> %{customdata[0]}<br>"
-    "<b>2024:</b> %{customdata[1]}<br>"
-    "<b>Change:</b> %{x:+d} population and jobs per acre"
-    "<extra></extra>"
-)
-
 
 def _bar_hover(df: pd.DataFrame, col_2010: str = "pop_jobs_2010_per_acre", col_2024: str = "pop_jobs_2024_per_acre") -> np.ndarray:
     return np.stack([
@@ -330,14 +322,6 @@ with tab_density:
 
     x_title = f"{d_label} per acre"
 
-    def _bar_label(row) -> str:
-        if mode_filter != "Rapid Transit":
-            return row["stop_name"]
-        circles = _to_circles(row["routes"])
-        return f"{circles} {row['stop_name']}" if circles else row["stop_name"]
-
-    bar_color = CR_COLOR if mode_filter == "Commuter Rail" else "#555555"
-
     def _make_bar(df: pd.DataFrame) -> go.Figure:
         x_int = df["density_change"].round(0).astype(int)
         x_display = x_int.where(x_int != 0, df["density_change"].apply(lambda v: 0.05 if v >= 0 else -0.05))
@@ -349,15 +333,31 @@ with tab_density:
             f"<b>Change:</b> %{{customdata[2]:+d}} {d_label.lower()} per acre"
             "<extra></extra>"
         )
-        return go.Figure(go.Bar(
-            x=x_display,
-            y=df.apply(_bar_label, axis=1),
-            orientation="h",
-            marker_color=bar_color,
-            customdata=cd,
-            hovertemplate=hover,
-            showlegend=False,
+        if mode_filter == "Commuter Rail":
+            return go.Figure(go.Bar(
+                x=x_display, y=df["stop_name"], orientation="h",
+                marker_color=CR_COLOR, customdata=cd, hovertemplate=hover, showlegend=False,
+            ))
+        clists = df["routes"].apply(_distinct_rt_colors).tolist()
+        fig = go.Figure(go.Bar(
+            x=x_display, y=df["stop_name"], orientation="h",
+            marker=dict(color=[c[0] for c in clists]),
+            customdata=cd, hovertemplate=hover, showlegend=False,
         ))
+        multi_mask = [len(c) > 1 for c in clists]
+        if any(multi_mask):
+            mdf = df[multi_mask]
+            mc = [c for c in clists if len(c) > 1]
+            fig.add_trace(go.Bar(
+                x=x_display[mdf.index], y=mdf["stop_name"], orientation="h",
+                marker=dict(color="rgba(0,0,0,0)", pattern=dict(
+                    shape="/", bgcolor="rgba(0,0,0,0)",
+                    fgcolor=[c[1] for c in mc], solidity=0.5, size=20,
+                )),
+                hoverinfo="skip", showlegend=False,
+            ))
+            fig.update_layout(barmode="overlay")
+        return fig
 
     with col_gain:
         st.caption("Most growth")
