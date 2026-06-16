@@ -308,13 +308,22 @@ with tab_scatter:
                 })
             )
 
+        show_lines = mode_filter == "Rapid Transit"
+        col_cfg = {"Lines": st.column_config.TextColumn(width="small")} if show_lines else {}
+
         col_above, col_below = st.columns(2)
         with col_above:
             st.markdown("**Well-developed / Under-served** (above the line)")
-            st.dataframe(_fmt_residuals(above), hide_index=True, use_container_width=True, column_config={"Lines": st.column_config.TextColumn(width="small")})
+            df_above = _fmt_residuals(above)
+            if not show_lines:
+                df_above = df_above.drop(columns="Lines")
+            st.dataframe(df_above, hide_index=True, use_container_width=True, column_config=col_cfg)
         with col_below:
             st.markdown("**Less-developed / Over-served** (below the line)")
-            st.dataframe(_fmt_residuals(below), hide_index=True, use_container_width=True, column_config={"Lines": st.column_config.TextColumn(width="small")})
+            df_below = _fmt_residuals(below)
+            if not show_lines:
+                df_below = df_below.drop(columns="Lines")
+            st.dataframe(df_below, hide_index=True, use_container_width=True, column_config=col_cfg)
 
 with tab_density:
     h, ml, ms, _, ns = st.columns([3, 0.7, 2, 0.3, 2], vertical_alignment="center")
