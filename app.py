@@ -77,8 +77,8 @@ def _distinct_rt_colors(routes_str: str) -> list[str]:
 
 def _bar_hover(df: pd.DataFrame, col_2010: str = "pop_jobs_2010_per_acre", col_2024: str = "pop_jobs_2024_per_acre") -> np.ndarray:
     return np.stack([
-        df[col_2010].round(0).astype(int),
-        df[col_2024].round(0).astype(int),
+        df[col_2010].round(1),
+        df[col_2024].round(1),
     ], axis=1)
 
 
@@ -312,7 +312,7 @@ with tab_density:
     with ml:
         st.markdown('<p class="axis-label">Metric</p>', unsafe_allow_html=True)
     with ns:
-        n = st.slider("Stations to show", 5, 30, 15)
+        n = st.slider("Stations to show", 5, 30, 20)
 
     base["density_change"] = base[col_2024] - base[col_2010]
     col_gain, col_loss = st.columns(2)
@@ -323,14 +323,14 @@ with tab_density:
     x_title = f"{d_label} per acre"
 
     def _make_bar(df: pd.DataFrame) -> go.Figure:
-        x_int = df["density_change"].round(0).astype(int)
-        x_display = x_int.where(x_int != 0, df["density_change"].apply(lambda v: 0.05 if v >= 0 else -0.05))
-        cd = np.hstack([_bar_hover(df, col_2010, col_2024), x_int.values.reshape(-1, 1)])
+        x_rounded = df["density_change"].round(1)
+        x_display = x_rounded.where(x_rounded != 0, df["density_change"].apply(lambda v: 0.05 if v >= 0 else -0.05))
+        cd = np.hstack([_bar_hover(df, col_2010, col_2024), x_rounded.values.reshape(-1, 1)])
         hover = (
             '<span style="font-size:14px"><b>%{y}</b></span><br>'
-            "<b>2010:</b> %{customdata[0]}<br>"
-            "<b>2024:</b> %{customdata[1]}<br>"
-            f"<b>Change:</b> %{{customdata[2]:+d}} {d_label.lower()} per acre"
+            "<b>2010:</b> %{customdata[0]:.1f}<br>"
+            "<b>2024:</b> %{customdata[1]:.1f}<br>"
+            f"<b>Change:</b> %{{customdata[2]:+.1f}} {d_label.lower()} per acre"
             "<extra></extra>"
         )
         if mode_filter == "Commuter Rail":
